@@ -8,6 +8,7 @@ import { ResourceNotFoundError } from '@/core/errors/errors/resource-not-found-e
 import { NegativeLimitError } from './errors/negative-limit-error'
 import { Transaction } from '../../enterprise/entities/Transaction'
 import { UniqueEntityIntId } from '@/core/entities/unique-entity-int-id'
+import { setTimeout } from 'node:timers/promises'
 
 interface CreateTransactionUseCaseRequest {
   clientId: number
@@ -36,11 +37,38 @@ export class CreateTransactionUseCase {
     type,
     description,
   }: CreateTransactionUseCaseRequest): Promise<CreateTransactionUseCaseResponse> {
-    const client = await this.clientsRepository.findById(clientId)
+    let rowCount
+    let client
 
-    if (!client) {
-      return left(new ResourceNotFoundError())
-    }
+    do {
+      client = await this.clientsRepository.findById(clientId)
+
+      if (!client) {
+        return left(new ResourceNotFoundError())
+      }
+
+      if (type === 'd') {
+        const balanceResult = client.balance - value
+
+        if (client.limit < balanceResult * -1) {
+          return left(new NegativeLimitError())
+        }
+
+        client.balance = balanceResult
+      }
+
+      if (type === 'c') {
+        client.balance += value
+      }
+
+      const result = await this.clientsRepository.save(client)
+
+      rowCount = result.rowCount
+
+      if (rowCount <= 0) {
+        await setTimeout(0)
+      }
+    } while (rowCount <= 0)
 
     const transaction = Transaction.create({
       clientId: new UniqueEntityIntId(clientId),
@@ -49,24 +77,7 @@ export class CreateTransactionUseCase {
       value,
     })
 
-    if (type === 'd') {
-      const balanceResult = client.balance - value
-
-      if (client.limit < balanceResult * -1) {
-        return left(new NegativeLimitError())
-      }
-
-      client.balance = balanceResult
-    }
-
-    if (type === 'c') {
-      client.balance += value
-    }
-
-    await Promise.all([
-      this.clientsRepository.save(client),
-      this.transactionsRepository.create(transaction),
-    ])
+    await this.transactionsRepository.create(transaction)
 
     return right({
       client,

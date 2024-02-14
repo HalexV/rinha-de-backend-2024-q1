@@ -5,6 +5,7 @@ interface PgDriverClient {
   id: number
   limit: number
   balance: number
+  version: number
 }
 
 export class PgDriverClientMapper {
@@ -13,6 +14,7 @@ export class PgDriverClientMapper {
       {
         balance: raw.balance,
         limit: raw.limit,
+        version: raw.version,
       },
       new UniqueEntityIntId(raw.id),
     )
@@ -23,6 +25,7 @@ export class PgDriverClientMapper {
       id: client.id.toValue(),
       balance: client.balance,
       limit: client.limit,
+      version: client.version,
     }
   }
 }

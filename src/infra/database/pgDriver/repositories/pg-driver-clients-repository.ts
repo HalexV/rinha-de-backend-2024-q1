@@ -31,18 +31,23 @@ export class PgDriverClientsRepository implements ClientsRepository {
     return PgDriverClientMapper.toDomain(data)
   }
 
-  async save(client: Client): Promise<void> {
+  async save(client: Client): Promise<{ rowCount: number }> {
     const data = PgDriverClientMapper.toPgDriver(client)
 
-    await this.pgDriver.runQuery(
+    const result = await this.pgDriver.runQuery(
       `
     UPDATE "${this.schema}"."clients" SET 
       "balance" = $2,
-      "limit" = $3
+      "limit" = $3,
+      "version" = $4 + 1
     
-    WHERE id=$1;
+    WHERE id=$1 AND "version"=$4;
     `,
-      [data.id, data.balance, data.limit],
+      [data.id, data.balance, data.limit, data.version],
     )
+
+    return {
+      rowCount: result.rowCount ?? -1,
+    }
   }
 }

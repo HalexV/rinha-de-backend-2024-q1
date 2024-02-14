@@ -12,7 +12,8 @@ export async function up(knex: Knex): Promise<void> {
   CREATE TABLE "${schema}"."clients" (
     "id" INT NOT NULL PRIMARY KEY,
     "limit" INT NOT NULL,
-    "balance" INT NOT NULL
+    "balance" INT NOT NULL,
+    "version" INT NOT NULL DEFAULT 0
   );
   `)
 }

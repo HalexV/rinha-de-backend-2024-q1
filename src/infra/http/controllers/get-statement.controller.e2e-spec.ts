@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/return-await */
 import { AppModule } from '@/infra/app.module'
 import { DatabaseModule } from '@/infra/database/database.module'
 import { EnvModule } from '@/infra/env/env.module'
@@ -193,6 +194,14 @@ describe('Get Recipient (E2E)', () => {
         }),
       ]),
     })
+
+    await request(app.getHttpServer())
+      .post(`/clientes/${clientId}/transacoes`)
+      .send({
+        valor: 700,
+        tipo: 'd',
+        descricao: 'devolva',
+      })
   })
 
   it('should return 404 when client does not exist', async () => {
@@ -245,5 +254,77 @@ describe('Get Recipient (E2E)', () => {
     )
 
     expect(responseE.statusCode).toBe(422)
+  })
+
+  it('should be able to return the expected balance during concurrent credit transactions', async () => {
+    const NUM_REQUESTS = 25
+
+    let promises = Array.from({ length: NUM_REQUESTS }, async () =>
+      request(app.getHttpServer()).post('/clientes/1/transacoes').send({
+        valor: 1,
+        tipo: 'c',
+        descricao: 'receba',
+      }),
+    )
+
+    await Promise.all(promises)
+
+    const responseC = await request(app.getHttpServer()).get(
+      '/clientes/1/extrato',
+    )
+
+    promises = Array.from({ length: NUM_REQUESTS }, async () =>
+      request(app.getHttpServer()).post('/clientes/1/transacoes').send({
+        valor: 1,
+        tipo: 'd',
+        descricao: 'devolva',
+      }),
+    )
+
+    await Promise.all(promises)
+
+    expect(responseC.body.saldo.total).toBe(25)
+
+    const responseD = await request(app.getHttpServer()).get(
+      '/clientes/1/extrato',
+    )
+
+    expect(responseD.body.saldo.total).toBe(0)
+  })
+
+  it('should be able to return the expected balance during concurrent debit transactions', async () => {
+    const NUM_REQUESTS = 25
+
+    let promises = Array.from({ length: NUM_REQUESTS }, async () =>
+      request(app.getHttpServer()).post('/clientes/1/transacoes').send({
+        valor: 1,
+        tipo: 'd',
+        descricao: 'devolva',
+      }),
+    )
+
+    await Promise.all(promises)
+
+    const responseC = await request(app.getHttpServer()).get(
+      '/clientes/1/extrato',
+    )
+
+    promises = Array.from({ length: NUM_REQUESTS }, async () =>
+      request(app.getHttpServer()).post('/clientes/1/transacoes').send({
+        valor: 1,
+        tipo: 'c',
+        descricao: 'receba',
+      }),
+    )
+
+    await Promise.all(promises)
+
+    expect(responseC.body.saldo.total).toBe(-25)
+
+    const responseD = await request(app.getHttpServer()).get(
+      '/clientes/1/extrato',
+    )
+
+    expect(responseD.body.saldo.total).toBe(0)
   })
 })

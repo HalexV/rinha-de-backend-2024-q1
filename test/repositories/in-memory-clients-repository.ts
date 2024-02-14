@@ -14,11 +14,15 @@ export class InMemoryClientsRepository implements ClientsRepository {
     return client
   }
 
-  async save(client: Client): Promise<void> {
+  async save(client: Client): Promise<{ rowCount: number }> {
     const itemIndex = this.items.findIndex(
       (item) => item.id.toValue() === client.id.toValue(),
     )
 
     this.items[itemIndex] = client
+
+    return {
+      rowCount: 0,
+    }
   }
 }
